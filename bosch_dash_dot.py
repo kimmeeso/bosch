@@ -62,7 +62,7 @@ if "notif" not in st.session_state:
 if "window_size" not in st.session_state:
     st.session_state.window_size = 50
 if "step_size" not in st.session_state:
-    st.session_state.step_size = 1
+    st.session_state.step_size = 5
 if "live_render_every" not in st.session_state:
     # 모든 tick마다 차트를 다시 그리면 버벅임이 생깁니다. N번 tick마다 1번만 렌더링.
     st.session_state.live_render_every = 1
@@ -1005,3 +1005,4 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+

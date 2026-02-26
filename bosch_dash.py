@@ -279,7 +279,7 @@ def create_chart_object(df_plot, keyword, title):
 
         # 🚨 효과 3: 선명한 메인 에러 점
         points = base.transform_filter(error_filter).mark_circle(
-            size=100, color='red', opacity=1
+            size=40, color='red', opacity=1
         )
         
         layers.extend([vert_line, halo, points])
@@ -970,6 +970,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

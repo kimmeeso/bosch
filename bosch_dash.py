@@ -169,16 +169,15 @@ def extract_issues(df):
 
 # 4. 차트 생성 함수
 def create_chart_object(df_plot, keyword, title):
-    # 1. 대상 컬럼 필터링 및 데이터 녹이기 (Melt)
+    # 1. 대상 컬럼 필터링 및 데이터 녹이기
     target_cols = [c for c in df_plot.columns if keyword.lower() in c.lower() and c != 'Time_ms']
     
-    # 데이터가 없을 경우 빈 차트 반환
     if not target_cols:
-        return alt.Chart(pd.DataFrame()).mark_text(text="No Data").properties(title=title, height=320)
+        return alt.Chart(pd.DataFrame()).mark_text(text="No Data").properties(title=title, height=420)
 
     df_long = df_plot.melt('Time_ms', value_vars=target_cols, var_name='Variable', value_name='Value')
 
-    # 2. 임계값(Threshold) 및 Y축 고정 범위(Domain) 설정
+    # 2. 임계값(Threshold) 및 Y축 고정 범위 설정
     limit = None
     y_domain = None
     
@@ -196,7 +195,7 @@ def create_chart_object(df_plot, keyword, title):
     y_scale = alt.Scale(domain=y_domain, clamp=True) if y_domain else alt.Scale(zero=False)
 
     # ---------------------------------------------------------
-    # [Layer 1] 메인 라인 차트 (파랑 -> 주황 색상 고정 및 범례 추가)
+    # [Layer 1] 메인 라인 차트
     # ---------------------------------------------------------
     base = alt.Chart(df_long).encode(
         x=alt.X('Time_ms', axis=alt.Axis(labels=False, title=None, tickCount=5)),
@@ -204,20 +203,25 @@ def create_chart_object(df_plot, keyword, title):
         color=alt.Color(
             'Variable', 
             scale=alt.Scale(scheme='category10'), 
-            legend=alt.Legend(orient='bottom', title=None)
+            # 💡 [수정 3] 레전드를 '우측 하단(bottom-right)'으로 이동하고 가로 방향으로 정렬
+            legend=alt.Legend(
+                orient='bottom-right', 
+                direction='horizontal',
+                title=None,
+                labelFontSize=12, # 레전드 글씨 크기 살짝 키움
+                symbolSize=150    # 레전드 아이콘(동그라미) 크기 키움
+            )
         ), 
         tooltip=['Time_ms', 'Variable', 'Value']
     )
-    line_layer = base.mark_line(interpolate='linear', strokeWidth=2)
+    line_layer = base.mark_line(interpolate='linear', strokeWidth=2.5) # 선 두께도 살짝 두껍게
 
-    # 🚨 [매우 중요] 이 줄이 빠지면 NameError가 납니다!
     layers = [line_layer]
     
     # ---------------------------------------------------------
-    # [Layer 2 & 3] 가이드라인과 🚨 빨간 점 (임계값이 있을 때만 추가)
+    # [Layer 2 & 3] 가이드라인과 🚨 빨간 점
     # ---------------------------------------------------------
     if limit:
-        # 상하한선 점선
         rule_up = alt.Chart(pd.DataFrame({'y': [limit]})).mark_rule(
             strokeDash=[4, 4], color='orange', size=1
         ).encode(y='y')
@@ -227,10 +231,9 @@ def create_chart_object(df_plot, keyword, title):
         
         layers.extend([rule_up, rule_down])
 
-        # 기준치를 넘는 에러 포인트 (빨간 점)
         points = base.transform_filter(
             (alt.datum.Value >= limit) | (alt.datum.Value <= -limit)
-        ).mark_circle(size=60, color='red', opacity=1)
+        ).mark_circle(size=80, color='red', opacity=1)
         
         layers.append(points)
 
@@ -239,11 +242,22 @@ def create_chart_object(df_plot, keyword, title):
     # ---------------------------------------------------------
     combined_chart = alt.layer(*layers).properties(
         title=title,
-        height=320 # 차트 높이
+        # 💡 [수정 3] 차트 세로 길이 대폭 증가 (기존 320 -> 420)
+        height=420, 
+        
+        # 💡 [수정 1] 여백(padding)을 충분히 주어 글자나 그래프가 잘리는 현상 완벽 방지
+        padding={"left": 10, "top": 25, "right": 20, "bottom": 20}
     ).configure_axis(
         grid=True, gridOpacity=0.3
     ).configure_title(
-        fontSize=15, anchor='start', color='#333'
+        # 💡 [수정 2] 제목 크기 증가 및 상단 중앙 정렬
+        fontSize=20, 
+        anchor='middle', 
+        color='#333',
+        offset=20 # 제목과 그래프 사이 간격도 넓혀서 답답함 해소
+    ).configure_view(
+        # 차트 겉 테두리를 없애서 더 넓고 시원해 보이게 (웹 대시보드 트렌드)
+        strokeWidth=0 
     )
 
     return combined_chart
@@ -898,6 +912,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

@@ -168,8 +168,10 @@ def extract_issues(df):
     return out.sort_values(by=["Time (ms)", "Variable"], kind="mergesort").reset_index(drop=True)
 
 # 4. 차트 생성 함수
+import altair as alt
+import pandas as pd
+
 def create_chart_object(df_plot, keyword, title):
-    # 1. 대상 컬럼 필터링 및 데이터 녹이기
     target_cols = [c for c in df_plot.columns if keyword.lower() in c.lower() and c != 'Time_ms']
     
     if not target_cols:
@@ -177,7 +179,6 @@ def create_chart_object(df_plot, keyword, title):
 
     df_long = df_plot.melt('Time_ms', value_vars=target_cols, var_name='Variable', value_name='Value')
 
-    # 2. 임계값(Threshold) 및 Y축 고정 범위 설정
     limit = None
     y_domain = None
     
@@ -194,6 +195,9 @@ def create_chart_object(df_plot, keyword, title):
 
     y_scale = alt.Scale(domain=y_domain, clamp=True) if y_domain else alt.Scale(zero=False)
 
+    # 클릭 시 선이 강조되는 인터랙션 (범례 클릭용)
+    highlight = alt.selection_point(fields=['Variable'], bind='legend')
+
     # ---------------------------------------------------------
     # [Layer 1] 메인 라인 차트
     # ---------------------------------------------------------
@@ -203,60 +207,69 @@ def create_chart_object(df_plot, keyword, title):
         color=alt.Color(
             'Variable', 
             scale=alt.Scale(scheme='category10'), 
-            # 💡 [수정 3] 레전드를 '우측 하단(bottom-right)'으로 이동하고 가로 방향으로 정렬
+            # 💡 [요청 1] 범례를 'top'으로 설정하여 제목 바로 아래에 위치시킴
             legend=alt.Legend(
-                orient='bottom-right', 
+                orient='top', 
                 direction='horizontal',
                 title=None,
-                labelFontSize=12, # 레전드 글씨 크기 살짝 키움
-                symbolSize=150    # 레전드 아이콘(동그라미) 크기 키움
+                labelFontSize=13,
+                symbolSize=150,
+                padding=10
             )
         ), 
+        # 선택 안 된 선은 반투명하게 처리
+        opacity=alt.condition(highlight, alt.value(1), alt.value(0.2)),
         tooltip=['Time_ms', 'Variable', 'Value']
     )
-    line_layer = base.mark_line(interpolate='linear', strokeWidth=2.5) # 선 두께도 살짝 두껍게
+    line_layer = base.mark_line(interpolate='linear', strokeWidth=2.5).add_params(highlight)
 
     layers = [line_layer]
     
     # ---------------------------------------------------------
-    # [Layer 2 & 3] 가이드라인과 🚨 빨간 점
+    # [Layer 2 & 3] 가이드라인과 🚨 [요청 3] 극적인 에러 효과
     # ---------------------------------------------------------
     if limit:
-        rule_up = alt.Chart(pd.DataFrame({'y': [limit]})).mark_rule(
-            strokeDash=[4, 4], color='orange', size=1
-        ).encode(y='y')
-        rule_down = alt.Chart(pd.DataFrame({'y': [-limit]})).mark_rule(
-            strokeDash=[4, 4], color='orange', size=1
-        ).encode(y='y')
-        
+        # 가이드라인
+        rule_up = alt.Chart(pd.DataFrame({'y': [limit]})).mark_rule(strokeDash=[4, 4], color='orange', size=1).encode(y='y')
+        rule_down = alt.Chart(pd.DataFrame({'y': [-limit]})).mark_rule(strokeDash=[4, 4], color='orange', size=1).encode(y='y')
         layers.extend([rule_up, rule_down])
 
-        points = base.transform_filter(
-            (alt.datum.Value >= limit) | (alt.datum.Value <= -limit)
-        ).mark_circle(size=80, color='red', opacity=1)
+        # 에러 필터링 조건
+        error_filter = (alt.datum.Value >= limit) | (alt.datum.Value <= -limit)
+
+        # 🚨 효과 1: 에러 발생 시점에 꽂히는 '빨간 수직 점선'
+        vert_line = base.transform_filter(error_filter).mark_rule(
+            color='red', strokeWidth=2, strokeDash=[4, 2], opacity=0.7
+        )
         
-        layers.append(points)
+        # 🚨 효과 2: 에러 점 주변에 퍼지는 커다란 '붉은 후광 (Halo)'
+        halo = base.transform_filter(error_filter).mark_circle(
+            size=600, color='red', opacity=0.25
+        )
+
+        # 🚨 효과 3: 선명한 메인 에러 점
+        points = base.transform_filter(error_filter).mark_circle(
+            size=100, color='red', opacity=1
+        )
+        
+        layers.extend([vert_line, halo, points])
 
     # ---------------------------------------------------------
-    # 최종 렌더링 조합 및 레이아웃 설정
+    # 최종 렌더링
     # ---------------------------------------------------------
     combined_chart = alt.layer(*layers).properties(
-        title=title,
-        # 💡 [수정 3] 차트 세로 길이 대폭 증가 (기존 320 -> 420)
-        height=420, 
-        
-        # 💡 [수정 1] 여백(padding)을 충분히 주어 글자나 그래프가 잘리는 현상 완벽 방지
-        padding={"left": 10, "top": 25, "right": 20, "bottom": 20}
+        title=alt.TitleParams(
+            text=title, 
+            anchor='middle', 
+            fontSize=22, 
+            color='#333', 
+            offset=15 # 제목과 범례 사이 여백
+        ),
+        height=400, 
+        padding={"left": 10, "top": 10, "right": 20, "bottom": 10}
     ).configure_axis(
         grid=True, gridOpacity=0.3
-    ).configure_title(
-        # 💡 [수정 2] 제목 크기 증가 및 상단 중앙 정렬
-        fontSize=20, 
-        anchor='middle', 
-        color='#333',
-        offset=20 # 제목과 그래프 사이 간격도 넓혀서 답답함 해소
     ).configure_view(
-        # 차트 겉 테두리를 없애서 더 넓고 시원해 보이게 (웹 대시보드 트렌드)
         strokeWidth=0 
     )
 
@@ -651,11 +664,25 @@ if menu == "현황 정보 (Live)":
         @st.fragment(run_every=(RENDER_INTERVAL_SEC if st.session_state.is_running else None))
         def _live_fragment():
             # --- Live 화면 상단 알림 배너 (이슈 히스토리 방문 시 자동 해제됨) ---
+# --- Live 화면 상단 알림 배너 (이슈 히스토리 방문 시 자동 해제됨) ---
             if int(st.session_state.unread_issue_count) > 0:
                 li = st.session_state.last_issue_summary or {}
-                st.warning(
-                    f"🔔 새 이슈 {int(st.session_state.unread_issue_count)}건 · "
-                    f"최근: `{li.get('Variable','')}` @ {li.get('Time (ms)','')}ms · {li.get('Status','')}"
+                
+                # 💡 [요청 4] 크고 강렬한 붉은색 알림창 (HTML/CSS 적용)
+                st.markdown(
+                    f"""
+                    <div style="background-color: #ffe6e6; border: 2px solid #ff4d4d; border-radius: 8px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(255, 77, 77, 0.2);">
+                        <h3 style="color: #d32f2f; margin: 0 0 10px 0; font-size: 22px;">
+                            🚨 새 이슈 {int(st.session_state.unread_issue_count)}건 발생!
+                        </h3>
+                        <p style="color: #b71c1c; font-size: 16px; margin: 0; font-weight: 500;">
+                            <b>최근 감지:</b> <code style="background-color: #ffcccc; color: #b71c1c; padding: 2px 6px; border-radius: 4px; font-size: 16px;">{li.get('Variable','')}</code> 
+                            지점 @ <b>{li.get('Time (ms)','')}ms</b> 
+                            <span style="color: #d32f2f; font-weight: bold;">· {li.get('Status','')}</span>
+                        </p>
+                    </div>
+                    """, 
+                    unsafe_allow_html=True
                 )
 
             # Live 탭에서는 그래프가 계속 흐르도록 주기 렌더링합니다.
@@ -912,6 +939,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

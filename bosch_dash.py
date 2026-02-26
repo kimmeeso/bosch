@@ -217,7 +217,7 @@ def create_chart_object(df_plot, keyword, title):
     base = alt.Chart(df_long).encode(
 # 💡 [수정 2] X축: 값(labels)을 켜고, 제목(title)을 'Time (ms)'로 추가
         x=alt.X('Time_ms', axis=alt.Axis(
-            labels=True, 
+            # labels=True, 
             title='Time (ms)', 
             titleFontSize=12, 
             labelFontSize=11, 
@@ -226,9 +226,11 @@ def create_chart_object(df_plot, keyword, title):
         )),
 # 💡 [수정 2] Y축: 값(labels)을 켜서 숫자가 보이도록 설정
         y=alt.Y('Value', axis=alt.Axis(
-            labels=True, 
+            labels=True, ticks=True,
             title=None, # Y축은 제목 없이 숫자만 깔끔하게 두는 것이 가독성이 좋습니다
-            labelFontSize=11
+            labelFontSize=14, 
+            labelFlush=False,
+            domain=True
         ), scale=y_scale),
         color=alt.Color(
             'Variable', 
@@ -294,12 +296,17 @@ def create_chart_object(df_plot, keyword, title):
             offset=15 # 제목과 범례 사이 여백
         ),
         height=400, 
-        padding={"left": 10, "top": 10, "right": 20, "bottom": 10}
+padding={"left": 70, "top": 10, "right": 20, "bottom": 40}
     ).configure_axis(
-        grid=True, gridOpacity=0.3
-    ).configure_view(
-        strokeWidth=0 
-    )
+    grid=True, 
+    gridOpacity=0.3,
+    domain=True,      # 축 기준선 보이기
+    labels=True       # 전역 라벨 활성화
+).configure_view(
+    strokeWidth=0,
+    # 💡 차트 내용물이 축을 덮지 않도록 설정
+    clip=False        
+)
 
     return combined_chart
 
@@ -964,6 +971,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

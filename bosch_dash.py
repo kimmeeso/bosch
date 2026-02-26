@@ -288,7 +288,7 @@ def create_chart_object(df_plot, keyword, title):
             color=alt.value('red') # 💡 인코딩에서 빨간색 강제 고정
         )
         
-        layers.extend([vert_line, halo, points])
+        # layers.extend([vert_line, halo, points])
         layers.extend([vert_line,points])
 
     # ---------------------------------------------------------
@@ -977,6 +977,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

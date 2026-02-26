@@ -269,17 +269,23 @@ def create_chart_object(df_plot, keyword, title):
 
         # 🚨 효과 1: 에러 발생 시점에 꽂히는 '빨간 수직 점선'
         vert_line = base.transform_filter(error_filter).mark_rule(
-            color='red', strokeWidth=2, strokeDash=[4, 2], opacity=0.7
+            strokeWidth=2, strokeDash=[4, 2], opacity=0.7
+        ).encode(
+            color=alt.value('red') # 💡 인코딩에서 빨간색 강제 고정
         )
         
         # 🚨 효과 2: 에러 점 주변에 퍼지는 커다란 '붉은 후광 (Halo)'
         halo = base.transform_filter(error_filter).mark_circle(
-            size=200, color='red', opacity=0.25
+            size=400, opacity=0.25 # 사이즈를 조금 더 키우면 효과가 좋습니다
+        ).encode(
+            color=alt.value('red') # 💡 인코딩에서 빨간색 강제 고정
         )
 
         # 🚨 효과 3: 선명한 메인 에러 점
         points = base.transform_filter(error_filter).mark_circle(
-            size=100, color='red', opacity=1
+            size=100, opacity=1
+        ).encode(
+            color=alt.value('red') # 💡 인코딩에서 빨간색 강제 고정
         )
         
         layers.extend([vert_line, halo, points])
@@ -970,6 +976,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

@@ -217,7 +217,7 @@ def create_chart_object(df_plot, keyword, title):
     base = alt.Chart(df_long).encode(
 # 💡 [수정 2] X축: 값(labels)을 켜고, 제목(title)을 'Time (ms)'로 추가
         x=alt.X('Time_ms', axis=alt.Axis(
-            # labels=True, 
+            labels=False, 
             title='Time (ms)', 
             titleFontSize=12, 
             labelFontSize=11, 
@@ -970,6 +970,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

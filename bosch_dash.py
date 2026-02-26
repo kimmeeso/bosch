@@ -700,11 +700,8 @@ if menu == "현황 정보 (Live)":
                 st.markdown(
                     f"""
                     <div style="background-color: #ffe6e6; border: 2px solid #ff4d4d; border-radius: 8px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(255, 77, 77, 0.2);">
-                        <h3 style="color: #d32f2f; margin: 0 0 10px 0; font-size: 22px;">
-                            🚨 새 이슈 {int(st.session_state.unread_issue_count)}건 발생!
-                        </h3>
                         <p style="color: #b71c1c; font-size: 16px; margin: 0; font-weight: 500;">
-                            <b>최근 감지:</b> <code style="background-color: #ffcccc; color: #b71c1c; padding: 2px 6px; border-radius: 4px; font-size: 16px;">{li.get('Variable','')}</code> 
+                            <b>🚨 새 이슈 {int(st.session_state.unread_issue_count)}건 발생! 최근 감지:</b> <code style="background-color: #ffcccc; color: #b71c1c; padding: 2px 6px; border-radius: 4px; font-size: 16px;">{li.get('Variable','')}</code> 
                             지점 @ <b>{li.get('Time (ms)','')}ms</b> 
                             <span style="color: #d32f2f; font-weight: bold;">· {li.get('Status','')}</span>
                         </p>
@@ -967,6 +964,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

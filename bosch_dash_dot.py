@@ -85,9 +85,9 @@ if "history_dirty" not in st.session_state:
 @st.cache_data(show_spinner=False)
 def get_abnormal_data():
     try:
-        files = glob.glob(os.path.join("./20.Data", "*adnormal*.csv"))
+        files = glob.glob(os.path.join("./data", "*adnormal*.csv"))
         if not files:
-            files = glob.glob(os.path.join("./data", "*adnormal*.csv"))
+            files = glob.glob(os.path.join("./20.Data", "*adnormal*.csv"))
             # files = glob.glob(os.path.join("./data", "*adnormal*_level2.csv"))
         df = pd.read_csv(files[0])
         print(files[0])
@@ -418,15 +418,35 @@ except:
 
 # --- 사이드바 ---
 with st.sidebar:
-    # 사이드바 최상단에 로고 이미지 삽입
+    # 사이드바 최상단에 로고 이미지 삽입 (반응형 크기)
+    st.markdown("""
+    <style>
+    .sidebar-logo-wrapper {
+        max-width: clamp(100px, 90%, 200px);
+        margin: 0 auto 10px auto;
+    }
+    .sidebar-logo-wrapper img {
+        width: 100%;
+        height: auto;
+        display: block;
+        object-fit: contain;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     try:
-        # 상사님이 주신 로고 이미지 경로 (예: ax_logo.jpg)
-        st.image("logo\logo_skax.png", 
-                 use_container_width=True) 
+        # 상사님이 주신 로고 이미지 경로 (반응형)
+        logo_skax_base64 = get_base64_image("./logo/logo_skax.png")
+        st.markdown(
+            f'<div class="sidebar-logo-wrapper"><img src="data:image/png;base64,{logo_skax_base64}"></div>',
+            unsafe_allow_html=True
+        )
     except:
-        # 이미지가 없을 경우 대체 텍스트나 아이콘 표시
-        st.title("🛡️ Bosch LMS")
-        st.caption("Advanced Diagnostic System")
+        try:
+            st.image("./logo/logo_skax.png", width=120)
+        except:
+            st.title("🛡️ Bosch LMS")
+            st.caption("Advanced Diagnostic System")
 
     st.divider() # 로고 아래 구분선 추가로 깔끔하게 정리
 
@@ -451,6 +471,8 @@ with st.sidebar:
         st.session_state.wrapped = False
         st.session_state.just_reset = False
         st.rerun()
+    
+    st.divider()
 
     st.session_state.window_size = st.slider(
         "화면 데이터 수", 10, 100, int(st.session_state.window_size), 1
@@ -467,13 +489,14 @@ with st.sidebar:
         help="너무 낮추면(빠르면) 렌더링 부하로 끊길 수 있습니다. 보통 0.5~1.0초가 무난합니다.",
     )
 
+    st.divider()
+
     # --- 알림(읽지 않은 신규 이슈) 표시: 탭 이동과 무관하게 항상 보이게 ---
     if int(st.session_state.unread_issue_count) > 0:
         st.warning(f"🔔 새 이슈 {int(st.session_state.unread_issue_count)}건")
         if st.session_state.last_issue_summary:
             li = st.session_state.last_issue_summary
             st.caption(f"최근: `{li.get('Variable')}` @ {li.get('Time (ms)')}ms · {li.get('Status')}")
-
 
     # 2. 이미지 경로 설정 (로컬 logo 폴더 내 파일명으로 수정하세요)
 # 3. [핵심] 탭 전환에도 흔들리지 않는 하단 고정 CSS 및 HTML
@@ -483,29 +506,39 @@ with st.sidebar:
                 <style>
                 /* 사이드바 여백 확보 */
                 [data-testid="stSidebarUserContent"] {{
-                    padding-bottom: 120px;
+                    padding-top: 0vw; /* 기존 15vw에서 5vw로 감소 */
+                    padding-bottom: 40vw; /* 하단 로고와 슬라이더 간 간격 증가 */
                 }}
-                /* 이미지 배경을 투명하게 고정 */
-                .sidebar-footer-fixed {{
-                    position: fixed;
-                    bottom: 20px;
-                    left: 20px;
-                    width: 260px; 
-                    z-index: 99;
-                    background-color: transparent; /* [수정] 배경을 투명하게 설정 */
-                    border: none;                  /* 테두리 제거 */
-                    padding: 0px;
+                /* 상단 로고 위치 및 크기 조정 */
+                .sidebar-logo-top {{
+                    max-width: clamp(120px, 15vw, 250px);
+                    margin: 0 auto 20px auto;
                 }}
-                .sidebar-footer-fixed img {{
+                .sidebar-logo-top img {{
                     width: 100%;
+                    height: auto;
                     display: block;
+                    object-fit: contain;
+                }}
+                /* 하단 로고 위치 및 크기 조정 */
+                .sidebar-logo-bottom {{
+                    position: absolute;
+                    bottom: clamp(20px, 4vh, 50px);
+                    left: 50%;
+                    transform: translateX(-50%);
+                    max-width: clamp(120px, 15vw, 250px);
+                    z-index: 10;
+                }}
+                .sidebar-logo-bottom img {{
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    object-fit: contain;
                 }}
                 </style>
                 <div class="sidebar-footer-fixed">
                     <img src="data:image/png;base64,{image_base64}">
-                    <p style="font-size: 11px; color: #888; text-align: center; margin-top: 5px;">
-                        LMS Diagnostic Reference
-                    </p>
+                    <p>LMS Diagnostic Reference</p>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -650,6 +683,9 @@ elif menu == "이슈 히스토리":
             st.session_state.selected_issue_row = event.selection.rows[0]
             sel_row = issue_df.iloc[int(st.session_state.selected_issue_row)]
             st.session_state.selected_issue_key = (int(sel_row["Time (ms)"]), str(sel_row["Variable"]))
+        else:
+            st.session_state.selected_issue_row = None
+            st.session_state.selected_issue_key = None
     else:
         table_slot.info("아직 감지된 이슈가 없습니다.")
 

@@ -178,26 +178,57 @@ def create_chart_object(df_plot, keyword, title):
     fig = go.Figure()
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#9467bd', '#17becf', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
     
-    for i, col in enumerate(display_cols):
-        if col not in df_plot.columns: continue # 데이터에 없는 경우 방지
-        line_color = colors[i % len(colors)]
-        fig.add_trace(go.Scattergl(
-            x=df_plot['Time_ms'], y=df_plot[col], name=f"{col}",
-            # 모든 점에 마커를 찍으면 렌더링 비용이 커서 '새로고침 느낌'이 강해집니다.
-            # 라인만 그리고, 이상점만 별도 마커로 표시합니다.
-            mode='lines', line=dict(color=line_color, width=2)
-        ))
+    # for i, col in enumerate(display_cols):
+    #     if col not in df_plot.columns: continue # 데이터에 없는 경우 방지
+    #     line_color = colors[i % len(colors)]
+    #     fig.add_trace(go.Scattergl(
+    #         x=df_plot['Time_ms'], y=df_plot[col], name=f"{col}",
+    #         # 모든 점에 마커를 찍으면 렌더링 비용이 커서 '새로고침 느낌'이 강해집니다.
+    #         # 라인만 그리고, 이상점만 별도 마커로 표시합니다.
+    #         mode='lines', line=dict(color=line_color, width=2)
+    #     ))
         
-        # 장애 강조 (원문 이미지 기준 적용)
-        limit = 22 if 'coilcurrent' in col.lower() else 5000 if 'poserror' in col.lower() else None
-        if limit is not None:
-            anomalies = df_plot[df_plot[col].abs() >= limit]
-            if not anomalies.empty:
-                fig.add_trace(go.Scattergl(
-                    x=anomalies['Time_ms'], y=anomalies[col], mode='markers', name=f"🚨 {col} Issue",
-                    marker=dict(color='red', size=8, symbol='circle', line=dict(color='white', width=1))
-                ))
+    #     # 장애 강조 (원문 이미지 기준 적용)
+    #     limit = 22 if 'coilcurrent' in col.lower() else 5000 if 'poserror' in col.lower() else None
+    #     if limit is not None:
+    #         anomalies = df_plot[df_plot[col].abs() >= limit]
+    #         if not anomalies.empty:
+    #             fig.add_trace(go.Scattergl(
+    #                 x=anomalies['Time_ms'], y=anomalies[col], mode='markers', name=f"🚨 {col} Issue",
+    #                 marker=dict(color='red', size=8, symbol='circle', line=dict(color='white', width=1))
+    #             ))
+    
+    for i, col in enumerate(display_cols):
+            if col not in df_plot.columns: continue 
+            line_color = colors[i % len(colors)]
+            
+            # 1. 일반 라인 레이어 (항상 추가)
+            fig.add_trace(go.Scattergl(
+                x=df_plot['Time_ms'], y=df_plot[col], name=f"{col}",
+                mode='lines', line=dict(color=line_color, width=2)
+            ))
+            
+            # 2. 장애(빨간 점) 레이어 
+            limit = 22 if 'coilcurrent' in col.lower() else 5000 if 'poserror' in col.lower() else None
+            
+            x_anom, y_anom = [], [] # 👈 기본값을 빈 리스트로 설정
+            
+            if limit is not None:
+                anomalies = df_plot[df_plot[col].abs() >= limit]
+                if not anomalies.empty:
+                    x_anom = anomalies['Time_ms']
+                    y_anom = anomalies[col]
+                    
+            # 🚨 [핵심] if문 밖으로 빼서 데이터가 없어도 무조건 빈 레이어를 추가합니다!
+            fig.add_trace(go.Scattergl(
+                x=x_anom, y=y_anom, mode='markers', name=f"🚨 {col} Issue",
+                marker=dict(color='red', size=8, symbol='circle', line=dict(color='white', width=1)),
+                showlegend=False # 빈 레이어가 범례를 지저분하게 만드는 것을 방지
+            ))
 
+
+
+    
     # Y축 범위 설정 (기존 로직 유지)
     y_range = None
     if 'coilcurrent' in keyword.lower(): y_range = [-35, 35]
@@ -886,6 +917,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

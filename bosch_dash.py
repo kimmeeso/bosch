@@ -205,14 +205,31 @@ def create_chart_object(df_plot, keyword, title):
     elif 'vel' in keyword.lower(): y_range = [-5500, 5500]
     elif 'pos' in keyword.lower(): y_range = [-100, 4100]
 
+# (기존 코드) Y축 범위 설정 부분 아래의 update_layout을 이렇게 교체하세요.
+    
     fig.update_layout(
         title=dict(text=title), template="plotly_white", height=320, 
         margin=dict(l=10, r=10, t=45, b=10),
-        yaxis=dict(range=y_range) if y_range else dict(autorange=True),
-        xaxis=dict(title=dict(text="Time (ms)"), showticklabels=False, showgrid=False, zeroline=False, showline=False),
+        
+        # 🔒 1. Y축 고정: autorange 대신 명시적 range 사용, 연산 차단(fixedrange)
+        yaxis=dict(
+            range=y_range if y_range else [df_plot[display_cols].min().min(), df_plot[display_cols].max().max()],
+            fixedrange=True 
+        ),
+        
+        # 🔒 2. X축 고정: 현재 데이터 윈도우의 시작과 끝을 절대값으로 고정
+        xaxis=dict(
+            title=dict(text="Time (ms)"), 
+            showticklabels=False, showgrid=False, zeroline=False, showline=False,
+            range=[df_plot['Time_ms'].min(), df_plot['Time_ms'].max()],
+            fixedrange=True
+        ),
+        
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        # 동일 차트로 인식하게 해서(상태 유지) 체감 깜빡임 완화
         uirevision=str(keyword),
+        
+        # 🔒 3. 애니메이션 끄기 (스트림릿에서는 애니메이션이 오히려 껌벅임을 유발함)
+        transition_duration=0
     )
     return fig
 
@@ -866,4 +883,5 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 

@@ -6,6 +6,7 @@ import os
 import glob
 import base64
 import time
+import altair as alt
 
 # 고속(벡터화) 이슈 추출 함수 (파일 내장)
 
@@ -59,9 +60,9 @@ if "notif" not in st.session_state:
 
 # --- Live 재생 설정값(메뉴 이동해도 유지) ---
 if "window_size" not in st.session_state:
-    st.session_state.window_size = 35
+    st.session_state.window_size = 50
 if "step_size" not in st.session_state:
-    st.session_state.step_size = 5
+    st.session_state.step_size = 1
 if "live_render_every" not in st.session_state:
     # 모든 tick마다 차트를 다시 그리면 버벅임이 생깁니다. N번 tick마다 1번만 렌더링.
     st.session_state.live_render_every = 1
@@ -167,56 +168,164 @@ def extract_issues(df):
     return out.sort_values(by=["Time (ms)", "Variable"], kind="mergesort").reset_index(drop=True)
 
 # 4. 차트 생성 함수
+import altair as alt
+import pandas as pd
+
 def create_chart_object(df_plot, keyword, title):
-    # 해당 키워드에 속하는 전체 컬럼 목록
+    # 1. 원래 그려야 할 전체 컬럼 목록
     all_target_cols = [c for c in df_plot.columns if keyword.lower() in c.lower() and c != 'Time_ms']
     
-    # 세션에 저장된 '사용자 선택 컬럼' 가져오기 (없으면 전체 표시)
+    # 💡 [핵심 복구] 상단 필터(multiselect)에서 사용자가 선택한 값 가져오기
     user_selection = st.session_state.selected_cols_dict.get(keyword, [])
-    display_cols = user_selection if user_selection else all_target_cols
-
-    fig = go.Figure()
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#9467bd', '#17becf', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
     
-    for i, col in enumerate(display_cols):
-        if col not in df_plot.columns: continue # 데이터에 없는 경우 방지
-        line_color = colors[i % len(colors)]
-        fig.add_trace(go.Scattergl(
-            x=df_plot['Time_ms'], y=df_plot[col], name=f"{col}",
-            # 모든 점에 마커를 찍으면 렌더링 비용이 커서 '새로고침 느낌'이 강해집니다.
-            # 라인만 그리고, 이상점만 별도 마커로 표시합니다.
-            mode='lines', line=dict(color=line_color, width=2)
-        ))
-        
-        # 장애 강조 (원문 이미지 기준 적용)
-        limit = 22 if 'coilcurrent' in col.lower() else 5000 if 'poserror' in col.lower() else None
-        if limit is not None:
-            anomalies = df_plot[df_plot[col].abs() >= limit]
-            if not anomalies.empty:
-                fig.add_trace(go.Scattergl(
-                    x=anomalies['Time_ms'], y=anomalies[col], mode='markers', name=f"🚨 {col} Issue",
-                    marker=dict(color='red', size=8, symbol='circle', line=dict(color='white', width=1))
-                ))
+    # 사용자가 선택한 게 있으면 그것만 쓰고, 아무것도 선택 안 했으면 전체를 보여줌
+    target_cols = user_selection if user_selection else all_target_cols
+    
+    # 혹시 모를 에러 방지 (실제 데이터에 있는 컬럼만 최종 선택)
+    target_cols = [c for c in target_cols if c in df_plot.columns]
+    
+    if not target_cols:
+        return alt.Chart(pd.DataFrame()).mark_text(text="데이터를 선택해주세요.").properties(title=title, height=400)
 
-    # Y축 범위 설정 (기존 로직 유지)
-    y_range = None
-    if 'coilcurrent' in keyword.lower(): y_range = [-35, 35]
-    elif 'poserror' in keyword.lower(): y_range = [-21000, 21000]
-    elif 'vel' in keyword.lower(): y_range = [-5500, 5500]
-    elif 'pos' in keyword.lower(): y_range = [-100, 4100]
+    # 2. 데이터 녹이기 (Melt) - 이제 선택된 컬럼(target_cols)만 녹입니다!
+    df_long = df_plot.melt('Time_ms', value_vars=target_cols, var_name='Variable', value_name='Value')
 
-    fig.update_layout(
-        title=dict(text=title), template="plotly_white", height=320, 
-        margin=dict(l=10, r=10, t=45, b=10),
-        yaxis=dict(range=y_range) if y_range else dict(autorange=True),
-        xaxis=dict(title=dict(text="Time (ms)"), showticklabels=False, showgrid=False, zeroline=False, showline=False),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        # 동일 차트로 인식하게 해서(상태 유지) 체감 깜빡임 완화
-        uirevision=str(keyword),
+    # ... (이하 기존 limit 설정 및 차트 그리는 코드 동일) ...
+
+    limit = None
+    y_domain = None
+    
+    if 'coilcurrent' in keyword.lower(): 
+        limit = 22
+        y_domain = [-35, 35]
+    elif 'poserror' in keyword.lower(): 
+        limit = 5000
+        y_domain = [-21000, 21000]
+    elif 'vel' in keyword.lower(): 
+        y_domain = [-5500, 5500]
+    elif 'pos' in keyword.lower(): 
+        y_domain = [-100, 4100]
+
+    y_scale = alt.Scale(domain=y_domain, clamp=True) if y_domain else alt.Scale(zero=False)
+
+    # 클릭 시 선이 강조되는 인터랙션 (범례 클릭용)
+    highlight = alt.selection_point(fields=['Variable'], bind='legend')
+
+    # ---------------------------------------------------------
+    # [Layer 1] 메인 라인 차트
+    # ---------------------------------------------------------
+    base = alt.Chart(df_long).encode(
+# 💡 [수정 2] X축: 값(labels)을 켜고, 제목(title)을 'Time (ms)'로 추가
+        x=alt.X('Time_ms', axis=alt.Axis(
+            labels=False, 
+            title='Time (ms)', 
+            titleFontSize=12, 
+            labelFontSize=11, 
+            tickCount=5,
+            titlePadding=10 # 제목과 숫자 사이 여백
+        )),
+# 💡 [수정 2] Y축: 값(labels)을 켜서 숫자가 보이도록 설정
+        y=alt.Y('Value', axis=alt.Axis(
+            labels=True, ticks=True,
+            title=None, # Y축은 제목 없이 숫자만 깔끔하게 두는 것이 가독성이 좋습니다
+            labelFontSize=14, 
+            labelFlush=False,
+            domain=True
+        ), scale=y_scale),
+        color=alt.Color(
+            'Variable', 
+            scale=alt.Scale(scheme='category10'), 
+            # 💡 [요청 1] 범례를 'top'으로 설정하여 제목 바로 아래에 위치시킴
+            legend=alt.Legend(
+                orient='top', 
+                direction='horizontal',
+                title=None,
+                labelFontSize=13,
+                symbolType='stroke', 
+                symbolStrokeWidth=3, # 선 두께
+                symbolSize=40,       # 심볼 크기를 부담스럽지 않게 축소
+                padding=10
+            )
+        ), 
+        # 선택 안 된 선은 반투명하게 처리
+        opacity=alt.condition(highlight, alt.value(1), alt.value(0.2)),
+        tooltip=['Time_ms', 'Variable', 'Value']
     )
-    return fig
+    line_layer = base.mark_line(interpolate='linear', strokeWidth=2.5).add_params(highlight)
 
+    layers = [line_layer]
+    
+    # ---------------------------------------------------------
+    # [Layer 2 & 3] 가이드라인과 🚨 [요청 3] 극적인 에러 효과
+    # ---------------------------------------------------------
+    if limit:
+        # 가이드라인
+        rule_up = alt.Chart(pd.DataFrame({'y': [limit]})).mark_rule(strokeDash=[4, 4], color='orange', size=1).encode(y='y')
+        rule_down = alt.Chart(pd.DataFrame({'y': [-limit]})).mark_rule(strokeDash=[4, 4], color='orange', size=1).encode(y='y')
+        layers.extend([rule_up, rule_down])
 
+        # 에러 효과(빨간 수직선/점)는 렌더 비용이 큽니다.
+        # Vega(브라우저)에서 transform_filter로 거르는 대신, 파이썬에서 미리 필터링하고
+        # 표시 개수 상한을 걸어 프리징을 방지합니다.
+        try:
+            err_df = df_long.loc[df_long["Value"].abs().ge(limit), ["Time_ms", "Variable", "Value"]]
+        except Exception:
+            err_df = pd.DataFrame(columns=["Time_ms", "Variable", "Value"])
+
+        if not err_df.empty:
+            MAX_ERR_POINTS = 1500   # 점이 너무 많으면 브라우저가 멈춥니다
+            MAX_ERR_RULES = 250     # 수직선도 동일하게 상한 적용
+
+            if len(err_df) > MAX_ERR_POINTS:
+                err_df = err_df.tail(MAX_ERR_POINTS)
+
+            rule_df = err_df[["Time_ms"]].drop_duplicates()
+            if len(rule_df) > MAX_ERR_RULES:
+                rule_df = rule_df.tail(MAX_ERR_RULES)
+
+            # 🚨 효과 1: 에러 발생 시점에 꽂히는 '빨간 수직 점선'
+            vert_line = alt.Chart(rule_df).mark_rule(
+                strokeWidth=2, strokeDash=[4, 2], opacity=0.7
+            ).encode(
+                x=alt.X("Time_ms:Q"),
+                color=alt.value("red")
+            )
+
+            # 🚨 효과 3: 선명한 메인 에러 점
+            points = alt.Chart(err_df).mark_circle(size=80, opacity=1).encode(
+                x=alt.X("Time_ms:Q"),
+                y=alt.Y("Value:Q"),
+                tooltip=["Time_ms", "Variable", "Value"],
+                color=alt.value("red")
+            )
+
+            layers.extend([vert_line, points])
+
+    # ---------------------------------------------------------
+    # 최종 렌더링
+    # ---------------------------------------------------------
+    combined_chart = alt.layer(*layers).properties(
+        title=alt.TitleParams(
+            text=title, 
+            anchor='middle', 
+            fontSize=22, 
+            color='#333', 
+            offset=15 # 제목과 범례 사이 여백
+        ),
+        height=400, 
+padding={"left": 70, "top": 10, "right": 20, "bottom": 40}
+    ).configure_axis(
+    grid=True, 
+    gridOpacity=0.3,
+    domain=True,      # 축 기준선 보이기
+    labels=True       # 전역 라벨 활성화
+).configure_view(
+    strokeWidth=0,
+    # 💡 차트 내용물이 축을 덮지 않도록 설정
+    clip=False        
+)
+
+    return combined_chart
 
 # 5. 로컬 이미지를 웹에서 읽을 수 있도록 변환하는 함수
 def get_base64_image(image_path):
@@ -567,6 +676,10 @@ if SUPPORTS_FRAGMENT:
     def _issue_monitor_fragment():
         if not st.session_state.is_running:
             return
+        # Live 탭에서는 차트 렌더 프래그먼트가 tick까지 담당합니다.
+        # 여기서도 tick을 돌리면 인덱스가 더 빨리 진행되어 "순간이동/끊김"이 생길 수 있습니다.
+        if st.session_state.current_menu == "현황 정보 (Live)":
+            return
 
         live_tick(
             window_size=int(st.session_state.window_size),
@@ -606,39 +719,62 @@ if menu == "현황 정보 (Live)":
     if SUPPORTS_FRAGMENT:
         @st.fragment(run_every=(RENDER_INTERVAL_SEC if st.session_state.is_running else None))
         def _live_fragment():
-            # --- Live 화면 상단 알림 배너 (이슈 히스토리 방문 시 자동 해제됨) ---
-            if int(st.session_state.unread_issue_count) > 0:
+            # 1. 알림 배너 (상태에 따라 색상 변경 및 위치 고정)
+            has_issue = int(st.session_state.unread_issue_count) > 0
+            bg_color = "#ffe6e6" if has_issue else "#e6ffed"
+            border_color = "#ff4d4d" if has_issue else "#28a745"
+            text_color = "#b71c1c" if has_issue else "#155724"
+            
+            if has_issue:
                 li = st.session_state.last_issue_summary or {}
-                st.warning(
-                    f"🔔 새 이슈 {int(st.session_state.unread_issue_count)}건 · "
-                    f"최근: `{li.get('Variable','')}` @ {li.get('Time (ms)','')}ms · {li.get('Status','')}"
+                msg = f"""
+                    <b>🚨 새 이슈 {int(st.session_state.unread_issue_count)}건 발생! 최근 감지:</b> 
+                    <code style="background-color: #ffcccc; color: #b71c1c; padding: 2px 6px; border-radius: 4px;">{li.get('Variable','')}</code> 
+                    @ <b>{li.get('Time (ms)','')}ms</b> 
+                    <span style="font-weight: bold;">· {li.get('Status','')}</span>
+                """
+            else:
+                msg = "<b>✅ 시스템 정상 운영 중</b> (현재 감지된 미확인 이슈가 없습니다)"
+    
+            st.markdown(
+                f"""
+                <div style="background-color: {bg_color}; border: 2px solid {border_color}; border-radius: 8px; 
+                            padding: 15px 20px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <p style="color: {text_color}; font-size: 16px; margin: 0; font-weight: 500;">{msg}</p>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+    
+            # 2. 데이터 슬라이싱 및 그래프 출력
+            if st.session_state.is_running:
+                # tick(인덱스 진행)과 차트 렌더를 같은 프래그먼트에서 처리해
+                # 에러 토스트가 "미리 뜨는" 체감과 그래프 "순간이동"을 줄입니다.
+                df_sub = live_tick(
+                    window_size=int(st.session_state.window_size),
+                    step_size=int(st.session_state.step_size),
+                    notify=(not st.session_state.chat_open),
                 )
-
-            # Live 탭에서는 그래프가 계속 흐르도록 주기 렌더링합니다.
-            # 데이터 진행(tick)은 백그라운드 monitor fragment가 담당합니다.
-            i = int(st.session_state.current_idx)
-            df_sub = df_full.iloc[i : i + int(st.session_state.window_size)]
-
+            else:
+                i = int(st.session_state.current_idx)
+                df_sub = df_full.iloc[i : i + int(st.session_state.window_size)]
+    
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.plotly_chart(create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), use_container_width=True)
+                st.altair_chart(create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), use_container_width=True)
             with col2:
-                st.plotly_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True)
+                st.altair_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True)
             with col3:
-                st.plotly_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True)
-
-            st.plotly_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True)
-            st.plotly_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True)
-
-            if st.session_state.is_running:
-                st.info(f"Live 실행 중입니다. 그래프는 약 {RENDER_INTERVAL_SEC:.1f}초마다 갱신됩니다.")
-            else:
-                st.info(f"현재 {st.session_state.current_idx}ms 지점에서 대기 중입니다.")
-
+                st.altair_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True)
+    
+            st.altair_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True)
+            st.altair_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True)
+    
+        # 3. 함수 실행 (함수 정의와 동일한 들여쓰기 레벨이어야 함)
         _live_fragment()
 
     else:
-        # (구버전 Streamlit) fragment 미지원: '에러 발생 시에만 갱신'을 구현하기 어렵습니다.
+        # (구버전 Streamlit) fragment 미지원: ...
         if st.session_state.is_running:
             st.warning("현재 Streamlit 버전에서는 '이슈 발생 시에만 갱신'이 제한적입니다. Streamlit 업데이트를 권장합니다.")
 
@@ -647,19 +783,24 @@ if menu == "현황 정보 (Live)":
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.plotly_chart(create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), use_container_width=True)
+            st.plotly_chart(create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), use_container_width=True, key="wait_chart_vel")
         with col2:
-            st.plotly_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True)
+            st.plotly_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True, key="wait_chart_pos1")
         with col3:
-            st.plotly_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True)
+            st.plotly_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True, key="wait_chart_pos2")
 
-        st.plotly_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True)
-        st.plotly_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True)
+        st.plotly_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True, key="wait_chart_coil")
+        st.plotly_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True, key="wait_chart_error")
 
         if st.session_state.is_running:
             st.info("Live 실행 중입니다. 화면은 '이슈 발생 시'에만 갱신됩니다.")
         else:
-            st.info(f"현재 {st.session_state.current_idx}ms 지점에서 대기 중입니다.")
+            # current_idx는 행 인덱스이므로 실제 Time_ms로 보여줍니다.
+            try:
+                _t = df_full.iloc[int(st.session_state.current_idx)]["Time_ms"]
+                st.info(f"현재 {_t}ms 지점에서 대기 중입니다.")
+            except Exception:
+                st.info(f"현재 인덱스 {st.session_state.current_idx} 지점에서 대기 중입니다.")
 
 elif menu == "이슈 히스토리":
     # 헤더가 테이블보다 늦게 보이는 체감을 줄이기 위해,

@@ -172,8 +172,9 @@ def create_chart_object(df_plot, keyword, title):
     # 1. 대상 컬럼 필터링 및 데이터 녹이기 (Melt)
     target_cols = [c for c in df_plot.columns if keyword.lower() in c.lower() and c != 'Time_ms']
     
+    # 데이터가 없을 경우 빈 차트 반환
     if not target_cols:
-        return alt.Chart(pd.DataFrame()).mark_text(text="No Data").properties(title=title, height=300)
+        return alt.Chart(pd.DataFrame()).mark_text(text="No Data").properties(title=title, height=320)
 
     df_long = df_plot.melt('Time_ms', value_vars=target_cols, var_name='Variable', value_name='Value')
 
@@ -181,7 +182,6 @@ def create_chart_object(df_plot, keyword, title):
     limit = None
     y_domain = None
     
-    # 키워드별 Y축 범위와 한계선 세팅
     if 'coilcurrent' in keyword.lower(): 
         limit = 22
         y_domain = [-35, 35]
@@ -193,33 +193,31 @@ def create_chart_object(df_plot, keyword, title):
     elif 'pos' in keyword.lower(): 
         y_domain = [-100, 4100]
 
-    # Y축 스케일 객체 생성 (범위가 지정되었으면 고정, 아니면 자동)
     y_scale = alt.Scale(domain=y_domain, clamp=True) if y_domain else alt.Scale(zero=False)
 
     # ---------------------------------------------------------
-    # [Layer 1] 메인 라인 차트
+    # [Layer 1] 메인 라인 차트 (파랑 -> 주황 색상 고정 및 범례 추가)
     # ---------------------------------------------------------
     base = alt.Chart(df_long).encode(
         x=alt.X('Time_ms', axis=alt.Axis(labels=False, title=None, tickCount=5)),
         y=alt.Y('Value', title=None, scale=y_scale), 
-        
-        # 🎨 [핵심 수정] scale=alt.Scale(scheme='category10') 추가!
-        # 이렇게 하면 무조건 첫 번째 컬럼은 파랑(#1f77b4), 두 번째는 주황(#ff7f0e)으로 고정됩니다.
         color=alt.Color(
             'Variable', 
             scale=alt.Scale(scheme='category10'), 
             legend=alt.Legend(orient='bottom', title=None)
         ), 
-        
         tooltip=['Time_ms', 'Variable', 'Value']
     )
     line_layer = base.mark_line(interpolate='linear', strokeWidth=2)
+
+    # 🚨 [매우 중요] 이 줄이 빠지면 NameError가 납니다!
+    layers = [line_layer]
     
     # ---------------------------------------------------------
-    # [Layer 2 & 3] 가이드라인과 🚨 빨간 점 (임계값이 있을 때만)
+    # [Layer 2 & 3] 가이드라인과 🚨 빨간 점 (임계값이 있을 때만 추가)
     # ---------------------------------------------------------
     if limit:
-        # 상/하한선 (점선)
+        # 상하한선 점선
         rule_up = alt.Chart(pd.DataFrame({'y': [limit]})).mark_rule(
             strokeDash=[4, 4], color='orange', size=1
         ).encode(y='y')
@@ -229,7 +227,7 @@ def create_chart_object(df_plot, keyword, title):
         
         layers.extend([rule_up, rule_down])
 
-        # 에러 포인트 (빨간 점)
+        # 기준치를 넘는 에러 포인트 (빨간 점)
         points = base.transform_filter(
             (alt.datum.Value >= limit) | (alt.datum.Value <= -limit)
         ).mark_circle(size=60, color='red', opacity=1)
@@ -237,7 +235,7 @@ def create_chart_object(df_plot, keyword, title):
         layers.append(points)
 
     # ---------------------------------------------------------
-    # 렌더링 조합 및 레이아웃 설정
+    # 최종 렌더링 조합 및 레이아웃 설정
     # ---------------------------------------------------------
     combined_chart = alt.layer(*layers).properties(
         title=title,
@@ -249,43 +247,6 @@ def create_chart_object(df_plot, keyword, title):
     )
 
     return combined_chart
-    
-    # Y축 범위 설정 (기존 로직 유지)
-    y_range = None
-    if 'coilcurrent' in keyword.lower(): y_range = [-35, 35]
-    elif 'poserror' in keyword.lower(): y_range = [-21000, 21000]
-    elif 'vel' in keyword.lower(): y_range = [-5500, 5500]
-    elif 'pos' in keyword.lower(): y_range = [-100, 4100]
-
-# (기존 코드) Y축 범위 설정 부분 아래의 update_layout을 이렇게 교체하세요.
-    
-    fig.update_layout(
-        title=dict(text=title), template="plotly_white", height=320, 
-        margin=dict(l=10, r=10, t=45, b=10),
-        
-        # 🔒 1. Y축 고정: autorange 대신 명시적 range 사용, 연산 차단(fixedrange)
-        yaxis=dict(
-            range=y_range if y_range else [df_plot[display_cols].min().min(), df_plot[display_cols].max().max()],
-            fixedrange=True 
-        ),
-        
-        # 🔒 2. X축 고정: 현재 데이터 윈도우의 시작과 끝을 절대값으로 고정
-        xaxis=dict(
-            title=dict(text="Time (ms)"), 
-            showticklabels=False, showgrid=False, zeroline=False, showline=False,
-            range=[df_plot['Time_ms'].min(), df_plot['Time_ms'].max()],
-            fixedrange=True
-        ),
-        
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        uirevision=str(keyword),
-        
-        # 🔒 3. 애니메이션 끄기 (스트림릿에서는 애니메이션이 오히려 껌벅임을 유발함)
-        transition_duration=0
-    )
-    return fig
-
-
 
 # 5. 로컬 이미지를 웹에서 읽을 수 있도록 변환하는 함수
 def get_base64_image(image_path):
@@ -937,6 +898,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

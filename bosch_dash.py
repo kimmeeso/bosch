@@ -172,12 +172,25 @@ import altair as alt
 import pandas as pd
 
 def create_chart_object(df_plot, keyword, title):
-    target_cols = [c for c in df_plot.columns if keyword.lower() in c.lower() and c != 'Time_ms']
+    # 1. 원래 그려야 할 전체 컬럼 목록
+    all_target_cols = [c for c in df_plot.columns if keyword.lower() in c.lower() and c != 'Time_ms']
+    
+    # 💡 [핵심 복구] 상단 필터(multiselect)에서 사용자가 선택한 값 가져오기
+    user_selection = st.session_state.selected_cols_dict.get(keyword, [])
+    
+    # 사용자가 선택한 게 있으면 그것만 쓰고, 아무것도 선택 안 했으면 전체를 보여줌
+    target_cols = user_selection if user_selection else all_target_cols
+    
+    # 혹시 모를 에러 방지 (실제 데이터에 있는 컬럼만 최종 선택)
+    target_cols = [c for c in target_cols if c in df_plot.columns]
     
     if not target_cols:
-        return alt.Chart(pd.DataFrame()).mark_text(text="No Data").properties(title=title, height=420)
+        return alt.Chart(pd.DataFrame()).mark_text(text="데이터를 선택해주세요.").properties(title=title, height=400)
 
+    # 2. 데이터 녹이기 (Melt) - 이제 선택된 컬럼(target_cols)만 녹입니다!
     df_long = df_plot.melt('Time_ms', value_vars=target_cols, var_name='Variable', value_name='Value')
+
+    # ... (이하 기존 limit 설정 및 차트 그리는 코드 동일) ...
 
     limit = None
     y_domain = None
@@ -939,6 +952,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

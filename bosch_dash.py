@@ -274,7 +274,7 @@ def create_chart_object(df_plot, keyword, title):
         
         # 🚨 효과 2: 에러 점 주변에 퍼지는 커다란 '붉은 후광 (Halo)'
         halo = base.transform_filter(error_filter).mark_circle(
-            size=600, color='red', opacity=0.25
+            size=40, color='red', opacity=0.25
         )
 
         # 🚨 효과 3: 선명한 메인 에러 점
@@ -970,6 +970,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

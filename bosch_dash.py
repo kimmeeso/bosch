@@ -6,6 +6,7 @@ import os
 import glob
 import base64
 import time
+import altair as alt
 
 # 고속(벡터화) 이슈 추출 함수 (파일 내장)
 
@@ -167,64 +168,137 @@ def extract_issues(df):
     return out.sort_values(by=["Time (ms)", "Variable"], kind="mergesort").reset_index(drop=True)
 
 # 4. 차트 생성 함수
-def create_chart_object(df_plot, keyword, title):
-    # 해당 키워드에 속하는 전체 컬럼 목록
-    all_target_cols = [c for c in df_plot.columns if keyword.lower() in c.lower() and c != 'Time_ms']
+# def create_chart_object(df_plot, keyword, title):
+#     # 해당 키워드에 속하는 전체 컬럼 목록
+#     all_target_cols = [c for c in df_plot.columns if keyword.lower() in c.lower() and c != 'Time_ms']
     
-    # 세션에 저장된 '사용자 선택 컬럼' 가져오기 (없으면 전체 표시)
-    user_selection = st.session_state.selected_cols_dict.get(keyword, [])
-    display_cols = user_selection if user_selection else all_target_cols
+#     # 세션에 저장된 '사용자 선택 컬럼' 가져오기 (없으면 전체 표시)
+#     user_selection = st.session_state.selected_cols_dict.get(keyword, [])
+#     display_cols = user_selection if user_selection else all_target_cols
 
-    fig = go.Figure()
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#9467bd', '#17becf', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+#     fig = go.Figure()
+#     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#9467bd', '#17becf', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
     
-    # for i, col in enumerate(display_cols):
-    #     if col not in df_plot.columns: continue # 데이터에 없는 경우 방지
-    #     line_color = colors[i % len(colors)]
-    #     fig.add_trace(go.Scattergl(
-    #         x=df_plot['Time_ms'], y=df_plot[col], name=f"{col}",
-    #         # 모든 점에 마커를 찍으면 렌더링 비용이 커서 '새로고침 느낌'이 강해집니다.
-    #         # 라인만 그리고, 이상점만 별도 마커로 표시합니다.
-    #         mode='lines', line=dict(color=line_color, width=2)
-    #     ))
+#     # for i, col in enumerate(display_cols):
+#     #     if col not in df_plot.columns: continue # 데이터에 없는 경우 방지
+#     #     line_color = colors[i % len(colors)]
+#     #     fig.add_trace(go.Scattergl(
+#     #         x=df_plot['Time_ms'], y=df_plot[col], name=f"{col}",
+#     #         # 모든 점에 마커를 찍으면 렌더링 비용이 커서 '새로고침 느낌'이 강해집니다.
+#     #         # 라인만 그리고, 이상점만 별도 마커로 표시합니다.
+#     #         mode='lines', line=dict(color=line_color, width=2)
+#     #     ))
         
-    #     # 장애 강조 (원문 이미지 기준 적용)
-    #     limit = 22 if 'coilcurrent' in col.lower() else 5000 if 'poserror' in col.lower() else None
-    #     if limit is not None:
-    #         anomalies = df_plot[df_plot[col].abs() >= limit]
-    #         if not anomalies.empty:
-    #             fig.add_trace(go.Scattergl(
-    #                 x=anomalies['Time_ms'], y=anomalies[col], mode='markers', name=f"🚨 {col} Issue",
-    #                 marker=dict(color='red', size=8, symbol='circle', line=dict(color='white', width=1))
-    #             ))
+#     #     # 장애 강조 (원문 이미지 기준 적용)
+#     #     limit = 22 if 'coilcurrent' in col.lower() else 5000 if 'poserror' in col.lower() else None
+#     #     if limit is not None:
+#     #         anomalies = df_plot[df_plot[col].abs() >= limit]
+#     #         if not anomalies.empty:
+#     #             fig.add_trace(go.Scattergl(
+#     #                 x=anomalies['Time_ms'], y=anomalies[col], mode='markers', name=f"🚨 {col} Issue",
+#     #                 marker=dict(color='red', size=8, symbol='circle', line=dict(color='white', width=1))
+#     #             ))
     
-    for i, col in enumerate(display_cols):
-            if col not in df_plot.columns: continue 
-            line_color = colors[i % len(colors)]
+#     for i, col in enumerate(display_cols):
+#             if col not in df_plot.columns: continue 
+#             line_color = colors[i % len(colors)]
             
-            # 1. 일반 라인 레이어 (항상 추가)
-            fig.add_trace(go.Scattergl(
-                x=df_plot['Time_ms'], y=df_plot[col], name=f"{col}",
-                mode='lines', line=dict(color=line_color, width=2)
-            ))
+#             # 1. 일반 라인 레이어 (항상 추가)
+#             fig.add_trace(go.Scattergl(
+#                 x=df_plot['Time_ms'], y=df_plot[col], name=f"{col}",
+#                 mode='lines', line=dict(color=line_color, width=2)
+#             ))
             
-            # 2. 장애(빨간 점) 레이어 
-            limit = 22 if 'coilcurrent' in col.lower() else 5000 if 'poserror' in col.lower() else None
+#             # 2. 장애(빨간 점) 레이어 
+#             limit = 22 if 'coilcurrent' in col.lower() else 5000 if 'poserror' in col.lower() else None
             
-            x_anom, y_anom = [], [] # 👈 기본값을 빈 리스트로 설정
+#             x_anom, y_anom = [], [] # 👈 기본값을 빈 리스트로 설정
             
-            if limit is not None:
-                anomalies = df_plot[df_plot[col].abs() >= limit]
-                if not anomalies.empty:
-                    x_anom = anomalies['Time_ms']
-                    y_anom = anomalies[col]
+#             if limit is not None:
+#                 anomalies = df_plot[df_plot[col].abs() >= limit]
+#                 if not anomalies.empty:
+#                     x_anom = anomalies['Time_ms']
+#                     y_anom = anomalies[col]
                     
-            # 🚨 [핵심] if문 밖으로 빼서 데이터가 없어도 무조건 빈 레이어를 추가합니다!
-            fig.add_trace(go.Scattergl(
-                x=x_anom, y=y_anom, mode='markers', name=f"🚨 {col} Issue",
-                marker=dict(color='red', size=8, symbol='circle', line=dict(color='white', width=1)),
-                showlegend=False # 빈 레이어가 범례를 지저분하게 만드는 것을 방지
-            ))
+#             # 🚨 [핵심] if문 밖으로 빼서 데이터가 없어도 무조건 빈 레이어를 추가합니다!
+#             fig.add_trace(go.Scattergl(
+#                 x=x_anom, y=y_anom, mode='markers', name=f"🚨 {col} Issue",
+#                 marker=dict(color='red', size=8, symbol='circle', line=dict(color='white', width=1)),
+#                 showlegend=False # 빈 레이어가 범례를 지저분하게 만드는 것을 방지
+#             ))
+
+def create_chart_object(df_plot, keyword, title):
+    # 1. 데이터 전처리: Altair는 'Long Format'을 좋아해서 데이터를 녹입니다.
+    # (35~100개 행 정도는 순식간에 처리하니 속도 걱정 마세요)
+    
+    # 해당 키워드 컬럼만 필터링
+    target_cols = [c for c in df_plot.columns if keyword.lower() in c.lower() and c != 'Time_ms']
+    
+    if not target_cols:
+        return alt.Chart(pd.DataFrame()).mark_text(text="No Data")
+
+    # Time_ms와 값들만 남기고 녹이기 (Melt)
+    df_long = df_plot.melt('Time_ms', value_vars=target_cols, var_name='Variable', value_name='Value')
+
+    # 2. 임계값(Threshold) 설정
+    limit = None
+    if 'coilcurrent' in keyword.lower(): limit = 22
+    elif 'poserror' in keyword.lower(): limit = 5000
+    
+    # ---------------------------------------------------------
+    # [Layer 1] 메인 라인 차트 (부드럽게 흐름)
+    # ---------------------------------------------------------
+    base = alt.Chart(df_long).encode(
+        x=alt.X('Time_ms', axis=alt.Axis(labels=False, title=None, tickCount=5)), # X축 라벨 숨겨서 깔끔하게
+        y=alt.Y('Value', title=None, scale=alt.Scale(zero=False)), # Y축 자동 스케일
+        color=alt.Color('Variable', legend=None), # 범례 숨김 (깔끔함 유지)
+        tooltip=['Time_ms', 'Variable', 'Value']
+    )
+    line_layer = base.mark_line(interpolate='linear', strokeWidth=2)
+
+    # ---------------------------------------------------------
+    # [Layer 2] 가이드라인 (점선) - 임계값이 있을 때만 그림
+    # ---------------------------------------------------------
+    layers = [line_layer]
+    
+    if limit:
+        # 상한선 (+Limit)
+        rule_up = alt.Chart(pd.DataFrame({'y': [limit]})).mark_rule(
+            strokeDash=[4, 4], color='orange', size=1
+        ).encode(y='y')
+        
+        # 하한선 (-Limit)
+        rule_down = alt.Chart(pd.DataFrame({'y': [-limit]})).mark_rule(
+            strokeDash=[4, 4], color='orange', size=1
+        ).encode(y='y')
+        
+        layers.append(rule_up)
+        layers.append(rule_down)
+
+        # ---------------------------------------------------------
+        # [Layer 3] 🚨 빨간 점 (에러 포인트)
+        # ---------------------------------------------------------
+        # 기준치를 넘는 데이터만 필터링해서 빨간 점을 찍습니다.
+        points = base.transform_filter(
+            (alt.datum.Value >= limit) | (alt.datum.Value <= -limit)
+        ).mark_circle(size=60, color='red', opacity=1)
+        
+        layers.append(points)
+
+    # 모든 레이어 합치기
+    combined_chart = alt.layer(*layers).properties(
+        title=title,
+        height=300 # 차트 높이
+    ).configure_axis(
+        grid=True, gridOpacity=0.3 # 격자 연하게
+    )
+
+    return combined_chart
+
+
+
+
+
 
 
 
@@ -687,21 +761,33 @@ if menu == "현황 정보 (Live)":
             # 기존 plotly_chart 대신 st.line_chart 사용 (index를 Time_ms로 맞춰주면 깔끔하게 나옵니다)
             
             # 1. 그래프에 그릴 데이터 준비 (시간을 인덱스로)
-            df_plot = df_sub.set_index('Time_ms')
+            # df_plot = df_sub.set_index('Time_ms')
             
-            # 2. 화면 출력
+            # # 2. 화면 출력
+            # col1, col2, col3 = st.columns(3)
+            # with col1:
+            #     st.line_chart(df_plot[[c for c in df_plot.columns if 'CarVel_' in c]], height=320)
+            # with col2:
+            #     st.line_chart(df_plot[[c for c in df_plot.columns if 'Pos_1' in c]], height=320)
+            # with col3:
+            #     st.line_chart(df_plot[[c for c in df_plot.columns if 'Pos_2' in c]], height=320)
+            
+            # st.line_chart(df_plot[[c for c in df_plot.columns if 'CoilCurrent' in c]], height=320)
+            # st.line_chart(df_plot[[c for c in df_plot.columns if 'PosError' in c]], height=320)
+                            
+    # (기존 _live_fragment 내부 수정)
+            
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.line_chart(df_plot[[c for c in df_plot.columns if 'CarVel_' in c]], height=320)
+                # 🟢 st.altair_chart 사용!
+                st.altair_chart(create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), use_container_width=True)
             with col2:
-                st.line_chart(df_plot[[c for c in df_plot.columns if 'Pos_1' in c]], height=320)
+                st.altair_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True)
             with col3:
-                st.line_chart(df_plot[[c for c in df_plot.columns if 'Pos_2' in c]], height=320)
-            
-            st.line_chart(df_plot[[c for c in df_plot.columns if 'CoilCurrent' in c]], height=320)
-            st.line_chart(df_plot[[c for c in df_plot.columns if 'PosError' in c]], height=320)
-                        
-                        
+                st.altair_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True)
+    
+            st.altair_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True)
+            st.altair_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True)                        
                     
                     
             
@@ -941,6 +1027,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

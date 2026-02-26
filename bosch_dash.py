@@ -619,16 +619,18 @@ if menu == "현황 정보 (Live)":
             i = int(st.session_state.current_idx)
             df_sub = df_full.iloc[i : i + int(st.session_state.window_size)]
 
+# (기존 코드)
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.plotly_chart(create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), use_container_width=True)
+                # 🟢 고정된 key="live_chart_vel" 추가
+                st.plotly_chart(create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), use_container_width=True, key="live_chart_vel")
             with col2:
-                st.plotly_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True)
+                st.plotly_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True, key="live_chart_pos1")
             with col3:
-                st.plotly_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True)
+                st.plotly_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True, key="live_chart_pos2")
 
-            st.plotly_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True)
-            st.plotly_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True)
+            st.plotly_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True, key="live_chart_coil")
+            st.plotly_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True, key="live_chart_error")
 
             if st.session_state.is_running:
                 st.info(f"Live 실행 중입니다. 그래프는 약 {RENDER_INTERVAL_SEC:.1f}초마다 갱신됩니다.")
@@ -638,7 +640,7 @@ if menu == "현황 정보 (Live)":
         _live_fragment()
 
     else:
-        # (구버전 Streamlit) fragment 미지원: '에러 발생 시에만 갱신'을 구현하기 어렵습니다.
+        # (구버전 Streamlit) fragment 미지원: ...
         if st.session_state.is_running:
             st.warning("현재 Streamlit 버전에서는 '이슈 발생 시에만 갱신'이 제한적입니다. Streamlit 업데이트를 권장합니다.")
 
@@ -647,14 +649,14 @@ if menu == "현황 정보 (Live)":
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.plotly_chart(create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), use_container_width=True)
+            st.plotly_chart(create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), use_container_width=True, key="wait_chart_vel")
         with col2:
-            st.plotly_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True)
+            st.plotly_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True, key="wait_chart_pos1")
         with col3:
-            st.plotly_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True)
+            st.plotly_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True, key="wait_chart_pos2")
 
-        st.plotly_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True)
-        st.plotly_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True)
+        st.plotly_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True, key="wait_chart_coil")
+        st.plotly_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True, key="wait_chart_error")
 
         if st.session_state.is_running:
             st.info("Live 실행 중입니다. 화면은 '이슈 발생 시'에만 갱신됩니다.")
@@ -864,3 +866,4 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+

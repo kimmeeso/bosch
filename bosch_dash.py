@@ -215,8 +215,21 @@ def create_chart_object(df_plot, keyword, title):
     # [Layer 1] 메인 라인 차트
     # ---------------------------------------------------------
     base = alt.Chart(df_long).encode(
-        x=alt.X('Time_ms', axis=alt.Axis(labels=False, title=None, tickCount=5)),
-        y=alt.Y('Value', title=None, scale=y_scale), 
+# 💡 [수정 2] X축: 값(labels)을 켜고, 제목(title)을 'Time (ms)'로 추가
+        x=alt.X('Time_ms', axis=alt.Axis(
+            labels=True, 
+            title='Time (ms)', 
+            titleFontSize=12, 
+            labelFontSize=11, 
+            tickCount=5,
+            titlePadding=10 # 제목과 숫자 사이 여백
+        )),
+# 💡 [수정 2] Y축: 값(labels)을 켜서 숫자가 보이도록 설정
+        y=alt.Y('Value', axis=alt.Axis(
+            labels=True, 
+            title=None, # Y축은 제목 없이 숫자만 깔끔하게 두는 것이 가독성이 좋습니다
+            labelFontSize=11
+        ), scale=y_scale),
         color=alt.Color(
             'Variable', 
             scale=alt.Scale(scheme='category10'), 
@@ -226,7 +239,9 @@ def create_chart_object(df_plot, keyword, title):
                 direction='horizontal',
                 title=None,
                 labelFontSize=13,
-                symbolSize=150,
+                symbolType='stroke', 
+                symbolStrokeWidth=3, # 선 두께
+                symbolSize=40,       # 심볼 크기를 부담스럽지 않게 축소
                 padding=10
             )
         ), 
@@ -952,6 +967,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

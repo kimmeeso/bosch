@@ -667,22 +667,46 @@ if menu == "현황 정보 (Live)":
             i = int(st.session_state.current_idx)
             df_sub = df_full.iloc[i : i + int(st.session_state.window_size)]
 
-# (기존 코드) st.plotly_chart 호출부에 config 옵션을 추가하세요.
+    # (기존 코드) st.plotly_chart 호출부에 config 옵션을 추가하세요.
             
+            # col1, col2, col3 = st.columns(3)
+            # with col1:
+            #     st.plotly_chart(
+            #         create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), 
+            #         use_container_width=True, key="live_v", 
+            #         config={'displayModeBar': False} # 👈 툴바 제거
+            #     )
+            # with col2:
+            #     st.plotly_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True, key="live_p1", config={'displayModeBar': False, 'staticPlot': True})
+            # with col3:
+            #     st.plotly_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True, key="live_p2", config={'displayModeBar': False, 'staticPlot': True})
+
+            # st.plotly_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True, key="live_c", config={'displayModeBar': False})
+            # st.plotly_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True, key="live_e", config={'displayModeBar': False})
+
+            # 기존 plotly_chart 대신 st.line_chart 사용 (index를 Time_ms로 맞춰주면 깔끔하게 나옵니다)
+            
+            # 1. 그래프에 그릴 데이터 준비 (시간을 인덱스로)
+            df_plot = df_sub.set_index('Time_ms')
+            
+            # 2. 화면 출력
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.plotly_chart(
-                    create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), 
-                    use_container_width=True, key="live_v", 
-                    config={'displayModeBar': False} # 👈 툴바 제거
-                )
+                st.line_chart(df_plot[[c for c in df_plot.columns if 'CarVel_' in c]], height=320)
             with col2:
-                st.plotly_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True, key="live_p1", config={'displayModeBar': False, 'staticPlot': True})
+                st.line_chart(df_plot[[c for c in df_plot.columns if 'Pos_1' in c]], height=320)
             with col3:
-                st.plotly_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True, key="live_p2", config={'displayModeBar': False, 'staticPlot': True})
-
-            st.plotly_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True, key="live_c", config={'displayModeBar': False})
-            st.plotly_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True, key="live_e", config={'displayModeBar': False})
+                st.line_chart(df_plot[[c for c in df_plot.columns if 'Pos_2' in c]], height=320)
+            
+            st.line_chart(df_plot[[c for c in df_plot.columns if 'CoilCurrent' in c]], height=320)
+            st.line_chart(df_plot[[c for c in df_plot.columns if 'PosError' in c]], height=320)
+                        
+                        
+                    
+                    
+            
+            
+            
             if st.session_state.is_running:
                 st.info(f"Live 실행 중입니다. 그래프는 약 {RENDER_INTERVAL_SEC:.1f}초마다 갱신됩니다.")
             else:
@@ -917,6 +941,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

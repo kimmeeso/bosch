@@ -168,137 +168,87 @@ def extract_issues(df):
     return out.sort_values(by=["Time (ms)", "Variable"], kind="mergesort").reset_index(drop=True)
 
 # 4. 차트 생성 함수
-# def create_chart_object(df_plot, keyword, title):
-#     # 해당 키워드에 속하는 전체 컬럼 목록
-#     all_target_cols = [c for c in df_plot.columns if keyword.lower() in c.lower() and c != 'Time_ms']
-    
-#     # 세션에 저장된 '사용자 선택 컬럼' 가져오기 (없으면 전체 표시)
-#     user_selection = st.session_state.selected_cols_dict.get(keyword, [])
-#     display_cols = user_selection if user_selection else all_target_cols
-
-#     fig = go.Figure()
-#     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#9467bd', '#17becf', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-    
-#     # for i, col in enumerate(display_cols):
-#     #     if col not in df_plot.columns: continue # 데이터에 없는 경우 방지
-#     #     line_color = colors[i % len(colors)]
-#     #     fig.add_trace(go.Scattergl(
-#     #         x=df_plot['Time_ms'], y=df_plot[col], name=f"{col}",
-#     #         # 모든 점에 마커를 찍으면 렌더링 비용이 커서 '새로고침 느낌'이 강해집니다.
-#     #         # 라인만 그리고, 이상점만 별도 마커로 표시합니다.
-#     #         mode='lines', line=dict(color=line_color, width=2)
-#     #     ))
-        
-#     #     # 장애 강조 (원문 이미지 기준 적용)
-#     #     limit = 22 if 'coilcurrent' in col.lower() else 5000 if 'poserror' in col.lower() else None
-#     #     if limit is not None:
-#     #         anomalies = df_plot[df_plot[col].abs() >= limit]
-#     #         if not anomalies.empty:
-#     #             fig.add_trace(go.Scattergl(
-#     #                 x=anomalies['Time_ms'], y=anomalies[col], mode='markers', name=f"🚨 {col} Issue",
-#     #                 marker=dict(color='red', size=8, symbol='circle', line=dict(color='white', width=1))
-#     #             ))
-    
-#     for i, col in enumerate(display_cols):
-#             if col not in df_plot.columns: continue 
-#             line_color = colors[i % len(colors)]
-            
-#             # 1. 일반 라인 레이어 (항상 추가)
-#             fig.add_trace(go.Scattergl(
-#                 x=df_plot['Time_ms'], y=df_plot[col], name=f"{col}",
-#                 mode='lines', line=dict(color=line_color, width=2)
-#             ))
-            
-#             # 2. 장애(빨간 점) 레이어 
-#             limit = 22 if 'coilcurrent' in col.lower() else 5000 if 'poserror' in col.lower() else None
-            
-#             x_anom, y_anom = [], [] # 👈 기본값을 빈 리스트로 설정
-            
-#             if limit is not None:
-#                 anomalies = df_plot[df_plot[col].abs() >= limit]
-#                 if not anomalies.empty:
-#                     x_anom = anomalies['Time_ms']
-#                     y_anom = anomalies[col]
-                    
-#             # 🚨 [핵심] if문 밖으로 빼서 데이터가 없어도 무조건 빈 레이어를 추가합니다!
-#             fig.add_trace(go.Scattergl(
-#                 x=x_anom, y=y_anom, mode='markers', name=f"🚨 {col} Issue",
-#                 marker=dict(color='red', size=8, symbol='circle', line=dict(color='white', width=1)),
-#                 showlegend=False # 빈 레이어가 범례를 지저분하게 만드는 것을 방지
-#             ))
-
 def create_chart_object(df_plot, keyword, title):
-    # 1. 데이터 전처리: Altair는 'Long Format'을 좋아해서 데이터를 녹입니다.
-    # (35~100개 행 정도는 순식간에 처리하니 속도 걱정 마세요)
-    
-    # 해당 키워드 컬럼만 필터링
+    # 1. 대상 컬럼 필터링 및 데이터 녹이기 (Melt)
     target_cols = [c for c in df_plot.columns if keyword.lower() in c.lower() and c != 'Time_ms']
     
     if not target_cols:
-        return alt.Chart(pd.DataFrame()).mark_text(text="No Data")
+        return alt.Chart(pd.DataFrame()).mark_text(text="No Data").properties(title=title, height=300)
 
-    # Time_ms와 값들만 남기고 녹이기 (Melt)
     df_long = df_plot.melt('Time_ms', value_vars=target_cols, var_name='Variable', value_name='Value')
 
-    # 2. 임계값(Threshold) 설정
+    # 2. 임계값(Threshold) 및 Y축 고정 범위(Domain) 설정
     limit = None
-    if 'coilcurrent' in keyword.lower(): limit = 22
-    elif 'poserror' in keyword.lower(): limit = 5000
+    y_domain = None
     
+    # 키워드별 Y축 범위와 한계선 세팅
+    if 'coilcurrent' in keyword.lower(): 
+        limit = 22
+        y_domain = [-35, 35]
+    elif 'poserror' in keyword.lower(): 
+        limit = 5000
+        y_domain = [-21000, 21000]
+    elif 'vel' in keyword.lower(): 
+        y_domain = [-5500, 5500]
+    elif 'pos' in keyword.lower(): 
+        y_domain = [-100, 4100]
+
+    # Y축 스케일 객체 생성 (범위가 지정되었으면 고정, 아니면 자동)
+    y_scale = alt.Scale(domain=y_domain, clamp=True) if y_domain else alt.Scale(zero=False)
+
     # ---------------------------------------------------------
-    # [Layer 1] 메인 라인 차트 (부드럽게 흐름)
+    # [Layer 1] 메인 라인 차트
     # ---------------------------------------------------------
     base = alt.Chart(df_long).encode(
-        x=alt.X('Time_ms', axis=alt.Axis(labels=False, title=None, tickCount=5)), # X축 라벨 숨겨서 깔끔하게
-        y=alt.Y('Value', title=None, scale=alt.Scale(zero=False)), # Y축 자동 스케일
-        color=alt.Color('Variable', legend=None), # 범례 숨김 (깔끔함 유지)
+        x=alt.X('Time_ms', axis=alt.Axis(labels=False, title=None, tickCount=5)),
+        y=alt.Y('Value', title=None, scale=y_scale), 
+        
+        # 🎨 [핵심 수정] scale=alt.Scale(scheme='category10') 추가!
+        # 이렇게 하면 무조건 첫 번째 컬럼은 파랑(#1f77b4), 두 번째는 주황(#ff7f0e)으로 고정됩니다.
+        color=alt.Color(
+            'Variable', 
+            scale=alt.Scale(scheme='category10'), 
+            legend=alt.Legend(orient='bottom', title=None)
+        ), 
+        
         tooltip=['Time_ms', 'Variable', 'Value']
     )
     line_layer = base.mark_line(interpolate='linear', strokeWidth=2)
-
-    # ---------------------------------------------------------
-    # [Layer 2] 가이드라인 (점선) - 임계값이 있을 때만 그림
-    # ---------------------------------------------------------
-    layers = [line_layer]
     
+    # ---------------------------------------------------------
+    # [Layer 2 & 3] 가이드라인과 🚨 빨간 점 (임계값이 있을 때만)
+    # ---------------------------------------------------------
     if limit:
-        # 상한선 (+Limit)
-        rule_up = alt.Chart(pd.DataFrame({'y': [limit]})).mark_rule(
-            strokeDash=[4, 4], color='orange', size=1
-        ).encode(y='y')
+        # # 상/하한선 (점선)
+        # rule_up = alt.Chart(pd.DataFrame({'y': [limit]})).mark_rule(
+        #     strokeDash=[4, 4], color='orange', size=1
+        # ).encode(y='y')
+        # rule_down = alt.Chart(pd.DataFrame({'y': [-limit]})).mark_rule(
+        #     strokeDash=[4, 4], color='orange', size=1
+        # ).encode(y='y')
         
-        # 하한선 (-Limit)
-        rule_down = alt.Chart(pd.DataFrame({'y': [-limit]})).mark_rule(
-            strokeDash=[4, 4], color='orange', size=1
-        ).encode(y='y')
-        
-        layers.append(rule_up)
-        layers.append(rule_down)
+        # layers.extend([rule_up, rule_down])
 
-        # ---------------------------------------------------------
-        # [Layer 3] 🚨 빨간 점 (에러 포인트)
-        # ---------------------------------------------------------
-        # 기준치를 넘는 데이터만 필터링해서 빨간 점을 찍습니다.
+        # 에러 포인트 (빨간 점)
         points = base.transform_filter(
             (alt.datum.Value >= limit) | (alt.datum.Value <= -limit)
         ).mark_circle(size=60, color='red', opacity=1)
         
         layers.append(points)
 
-    # 모든 레이어 합치기
+    # ---------------------------------------------------------
+    # 렌더링 조합 및 레이아웃 설정
+    # ---------------------------------------------------------
     combined_chart = alt.layer(*layers).properties(
         title=title,
-        height=300 # 차트 높이
+        height=320 # 차트 높이
     ).configure_axis(
-        grid=True, gridOpacity=0.3 # 격자 연하게
+        grid=True, gridOpacity=0.3
+    ).configure_title(
+        fontSize=15, anchor='start', color='#333'
     )
 
     return combined_chart
-
-
-
-
-
 
 
 
@@ -1027,6 +977,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

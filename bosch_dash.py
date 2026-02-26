@@ -695,53 +695,53 @@ if menu == "현황 정보 (Live)":
             "Position Error 선택", [c for c in df_full.columns if 'PosError' in c], key="ms_err"
         )
 
-if SUPPORTS_FRAGMENT:
-    @st.fragment(run_every=(RENDER_INTERVAL_SEC if st.session_state.is_running else None))
-    def _live_fragment():
-        # 1. 알림 배너 (상태에 따라 색상 변경 및 위치 고정)
-        has_issue = int(st.session_state.unread_issue_count) > 0
-        bg_color = "#ffe6e6" if has_issue else "#e6ffed"
-        border_color = "#ff4d4d" if has_issue else "#28a745"
-        text_color = "#b71c1c" if has_issue else "#155724"
-        
-        if has_issue:
-            li = st.session_state.last_issue_summary or {}
-            msg = f"""
-                <b>🚨 새 이슈 {int(st.session_state.unread_issue_count)}건 발생! 최근 감지:</b> 
-                <code style="background-color: #ffcccc; color: #b71c1c; padding: 2px 6px; border-radius: 4px;">{li.get('Variable','')}</code> 
-                @ <b>{li.get('Time (ms)','')}ms</b> 
-                <span style="font-weight: bold;">· {li.get('Status','')}</span>
-            """
-        else:
-            msg = "<b>✅ 시스템 정상 운영 중</b> (현재 감지된 미확인 이슈가 없습니다)"
-
-        st.markdown(
-            f"""
-            <div style="background-color: {bg_color}; border: 2px solid {border_color}; border-radius: 8px; 
-                        padding: 15px 20px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <p style="color: {text_color}; font-size: 16px; margin: 0; font-weight: 500;">{msg}</p>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-
-        # 2. 데이터 슬라이싱 및 그래프 출력
-        i = int(st.session_state.current_idx)
-        df_sub = df_full.iloc[i : i + int(st.session_state.window_size)]
-
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.altair_chart(create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), use_container_width=True)
-        with col2:
-            st.altair_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True)
-        with col3:
-            st.altair_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True)
-
-        st.altair_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True)
-        st.altair_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True)
-
-    # 3. 함수 실행 (함수 정의와 동일한 들여쓰기 레벨이어야 함)
-    _live_fragment()
+    if SUPPORTS_FRAGMENT:
+        @st.fragment(run_every=(RENDER_INTERVAL_SEC if st.session_state.is_running else None))
+        def _live_fragment():
+            # 1. 알림 배너 (상태에 따라 색상 변경 및 위치 고정)
+            has_issue = int(st.session_state.unread_issue_count) > 0
+            bg_color = "#ffe6e6" if has_issue else "#e6ffed"
+            border_color = "#ff4d4d" if has_issue else "#28a745"
+            text_color = "#b71c1c" if has_issue else "#155724"
+            
+            if has_issue:
+                li = st.session_state.last_issue_summary or {}
+                msg = f"""
+                    <b>🚨 새 이슈 {int(st.session_state.unread_issue_count)}건 발생! 최근 감지:</b> 
+                    <code style="background-color: #ffcccc; color: #b71c1c; padding: 2px 6px; border-radius: 4px;">{li.get('Variable','')}</code> 
+                    @ <b>{li.get('Time (ms)','')}ms</b> 
+                    <span style="font-weight: bold;">· {li.get('Status','')}</span>
+                """
+            else:
+                msg = "<b>✅ 시스템 정상 운영 중</b> (현재 감지된 미확인 이슈가 없습니다)"
+    
+            st.markdown(
+                f"""
+                <div style="background-color: {bg_color}; border: 2px solid {border_color}; border-radius: 8px; 
+                            padding: 15px 20px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <p style="color: {text_color}; font-size: 16px; margin: 0; font-weight: 500;">{msg}</p>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+    
+            # 2. 데이터 슬라이싱 및 그래프 출력
+            i = int(st.session_state.current_idx)
+            df_sub = df_full.iloc[i : i + int(st.session_state.window_size)]
+    
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.altair_chart(create_chart_object(df_sub, 'CarVel_', "LMS Carrier 1&2 Velocity"), use_container_width=True)
+            with col2:
+                st.altair_chart(create_chart_object(df_sub, 'Pos_1', "LMS Position 1"), use_container_width=True)
+            with col3:
+                st.altair_chart(create_chart_object(df_sub, 'Pos_2', "LMS Position 2"), use_container_width=True)
+    
+            st.altair_chart(create_chart_object(df_sub, 'CoilCurrent', "LMS Coil Current"), use_container_width=True)
+            st.altair_chart(create_chart_object(df_sub, 'PosError', "LMS Position Error"), use_container_width=True)
+    
+        # 3. 함수 실행 (함수 정의와 동일한 들여쓰기 레벨이어야 함)
+        _live_fragment()
 
     else:
         # (구버전 Streamlit) fragment 미지원: ...
@@ -970,6 +970,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

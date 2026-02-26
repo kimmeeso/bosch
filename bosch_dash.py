@@ -698,24 +698,38 @@ if menu == "현황 정보 (Live)":
     if SUPPORTS_FRAGMENT:
         @st.fragment(run_every=(RENDER_INTERVAL_SEC if st.session_state.is_running else None))
         def _live_fragment():
-            # --- Live 화면 상단 알림 배너 (이슈 히스토리 방문 시 자동 해제됨) ---
-# --- Live 화면 상단 알림 배너 (이슈 히스토리 방문 시 자동 해제됨) ---
-            if int(st.session_state.unread_issue_count) > 0:
-                li = st.session_state.last_issue_summary or {}
-                
-                # 💡 [요청 4] 크고 강렬한 붉은색 알림창 (HTML/CSS 적용)
-                st.markdown(
-                    f"""
-                    <div style="background-color: #ffe6e6; border: 2px solid #ff4d4d; border-radius: 8px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(255, 77, 77, 0.2);">
-                        <p style="color: #b71c1c; font-size: 16px; margin: 0; font-weight: 500;">
-                            <b>🚨 새 이슈 {int(st.session_state.unread_issue_count)}건 발생! 최근 감지:</b> <code style="background-color: #ffcccc; color: #b71c1c; padding: 2px 6px; border-radius: 4px; font-size: 16px;">{li.get('Variable','')}</code> 
-                            지점 @ <b>{li.get('Time (ms)','')}ms</b> 
-                            <span style="color: #d32f2f; font-weight: bold;">· {li.get('Status','')}</span>
-                        </p>
-                    </div>
-                    """, 
-                    unsafe_allow_html=True
-                )
+# --- Live 화면 상단 알림 배너 (위치 고정으로 차트 흔들림 방지) ---
+        # 이슈 유무에 따라 색상과 문구를 결정합니다.
+        has_issue = int(st.session_state.unread_issue_count) > 0
+        
+        bg_color = "#ffe6e6" if has_issue else "#e6ffed"      # 빨강 : 초록
+        border_color = "#ff4d4d" if has_issue else "#28a745"  # 빨강 : 초록
+        text_color = "#b71c1c" if has_issue else "#155724"    # 빨강 : 초록
+        
+        if has_issue:
+            li = st.session_state.last_issue_summary or {}
+            msg = f"""
+                <b>🚨 새 이슈 {int(st.session_state.unread_issue_count)}건 발생! 최근 감지:</b> 
+                <code style="background-color: #ffcccc; color: #b71c1c; padding: 2px 6px; border-radius: 4px;">{li.get('Variable','')}</code> 
+                @ <b>{li.get('Time (ms)','')}ms</b> 
+                <span style="font-weight: bold;">· {li.get('Status','')}</span>
+            """
+        else:
+            msg = "<b>✅ 시스템 정상 운영 중</b> (현재 감지된 미확인 이슈가 없습니다)"
+
+        # 항상 같은 높이(padding/margin)를 유지하여 아래 차트가 밀리지 않게 함
+        st.markdown(
+            f"""
+            <div style="background-color: {bg_color}; border: 2px solid {border_color}; border-radius: 8px; 
+                        padding: 15px 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                        transition: all 0.3s ease;">
+                <p style="color: {text_color}; font-size: 16px; margin: 0; font-weight: 500;">
+                    {msg}
+                </p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
 
             # Live 탭에서는 그래프가 계속 흐르도록 주기 렌더링합니다.
             # 데이터 진행(tick)은 백그라운드 monitor fragment가 담당합니다.
@@ -971,6 +985,7 @@ elif menu == "이슈 히스토리":
 
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
+
 
 
 

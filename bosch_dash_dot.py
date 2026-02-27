@@ -1006,3 +1006,5 @@ elif menu == "이슈 히스토리":
 # 메뉴 상태 기억(다음 rerun에서 탭 진입 감지용)
 st.session_state.last_menu = st.session_state.current_menu
 
+
+# https://r3xvs8fz2xeavznsbappkwx.streamlit.app/
